@@ -1,0 +1,143 @@
+<p align="center">
+  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
+</p>
+
+<p align="center">API de controle de visitantes, construída com <a href="http://nestjs.com/">NestJS</a> e <a href="https://www.prisma.io/">Prisma ORM 7</a>.</p>
+
+## Descrição
+
+API para controle de visitantes de uma empresa: cadastro de usuários do sistema (recepcionistas e administradores), cadastro de visitantes, registro de check-in/check-out de visitas, e controle de acesso por roles/permissions (RBAC), protegida por autenticação JWT e por API key de aplicação.
+
+## Stack
+
+- **[NestJS 11](https://nestjs.com/)** — framework Node.js/TypeScript
+- **[Prisma ORM 7](https://www.prisma.io/)** com driver adapter (`@prisma/adapter-pg`) — sem motor em Rust, conecta direto via `pg`
+- **PostgreSQL** — banco de dados
+- **JWT** (`@nestjs/jwt` + `passport-jwt`) — autenticação de usuário
+- **API key** (header `x-api-key`) — camada extra de autorização por aplicação cliente
+- **class-validator / class-transformer** — validação e transformação dos DTOs
+- **bcrypt** — hash de senha
+- **@nestjs/swagger** — documentação interativa da API
+- **Joi** (`@nestjs/config`) — validação das variáveis de ambiente
+
+## Arquitetura
+
+```
+src/
+├── auth/            # login, JWT, guards (JwtAuthGuard, PermissionsGuard, ApiKeyGuard), decorators
+├── users/            # cadastro/consulta de usuários do sistema
+├── visitors/         # cadastro/consulta de visitantes
+├── visit/            # check-in/check-out de visitas (rotas em /visits)
+├── database/prisma/  # PrismaService (conexão com o Postgres via driver adapter)
+├── common/filters/   # filtro global que padroniza o formato das respostas de erro
+└── config/           # validação das variáveis de ambiente (env.validation.ts)
+```
+
+O controle de acesso é feito por **roles** (`RECEPTIONIST`, `ADMIN`) e **permissions** (ex: `VISIT_CREATE`, `VISITOR_VIEW_SENSITIVE`, `USER_CHANGE_ROLE`), guardadas em tabelas no banco (`roles`, `permissions`, `role_permissions`) e verificadas em cada rota pelo decorator `@Permissions(...)` + `PermissionsGuard`.
+
+Regras de negócio centrais (impedir visita duplicada, exigir dados de checkout, etc.) são garantidas em duas camadas: **procedures** do Postgres (`create_visitor`, `insert_visit`, `checkout_visit`) chamadas pelos services, e **triggers** no banco (`prevent_double_active_visit`, `prevent_double_checkout`, `audit_visits`) como defesa extra caso alguém grave direto na tabela.
+
+## Configuração
+
+1. Instale as dependências:
+
+```bash
+npm install
+```
+
+2. Copie o `.env.example` para `.env` e preencha os valores:
+
+```bash
+cp .env.example .env
+```
+
+| Variável | Descrição |
+|---|---|
+| `DATABASE_URL` | string de conexão do Postgres |
+| `JWT_SECRET` | chave usada para assinar o token JWT (mínimo 16 caracteres) |
+| `JWT_EXPIRATION` | tempo de validade do token (ex: `1h`, `24h`) |
+| `API_KEY` | chave exigida no header `x-api-key` em toda rota da API |
+| `PORT` | porta em que o servidor sobe (padrão `3000`) |
+| `NODE_ENV` | ambiente (`development`, `production` ou `test`) |
+
+3. Rode as migrations (cria tabelas, procedures e triggers no banco):
+
+```bash
+npx prisma migrate dev
+```
+
+4. Popule as roles/permissions iniciais (`RECEPTIONIST`, `ADMIN` e suas permissões):
+
+```bash
+npx tsx prisma/seed.ts
+```
+
+## Rodando o projeto
+
+```bash
+# desenvolvimento
+npm run start
+
+# modo watch (recompila a cada alteração)
+npm run start:dev
+
+# produção
+npm run start:prod
+```
+
+Depois de subir, a documentação interativa (Swagger) fica disponível em:
+
+```
+http://localhost:3000/api/docs
+```
+
+## Autenticação nas requisições
+
+Toda rota da API exige o header `x-api-key` (com o valor de `API_KEY` do `.env`). Rotas fora do `/auth/login` também exigem `Authorization: Bearer <token>` (obtido no login) e a permissão correspondente à ação:
+
+```bash
+curl -X POST http://localhost:3000/auth/login \
+  -H "x-api-key: <sua API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@empresa.com","password":"suaSenha"}'
+```
+
+## Principais rotas
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `POST` | `/auth/login` | autentica e devolve o token JWT |
+| `POST` | `/users` | cria um usuário do sistema |
+| `GET` | `/users/:id` | busca um usuário pelo id |
+| `POST` | `/visitors` | cadastra um visitante |
+| `GET` | `/visitors/:id` | busca um visitante pelo id |
+| `GET` | `/visitors` | lista visitantes (paginado) |
+| `POST` | `/visits` | registra o check-in de uma visita |
+| `PATCH` | `/visits/:id/checkout` | registra o check-out de uma visita |
+| `GET` | `/visits/active` | lista as visitas com status `ACTIVE` |
+
+## Testes
+
+```bash
+# testes unitários
+npm run test
+
+# testes e2e
+npm run test:e2e
+
+# cobertura
+npm run test:cov
+```
+
+## Prisma
+
+```bash
+# abrir o Prisma Studio (interface visual do banco)
+npx prisma studio
+
+# criar uma nova migration a partir de mudanças no schema.prisma
+npx prisma migrate dev --name nome_da_mudanca
+
+# regenerar o Prisma Client depois de editar o schema
+npx prisma generate
+```

@@ -1,0 +1,150 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+// ============================================================
+// USER - Usuários do sistema (Recepcionistas e Admin)
+// ============================================================
+model User {
+  id_user   String   @id @default(uuid())
+  email     String   @unique @db.VarChar(255)
+  password  String   @db.VarChar(255) // Hash bcrypt
+  fullName  String   @db.VarChar(150)
+  isActive  Boolean  @default(true)
+
+  // Relacionamento com a role do usuário
+  fk_roleId Int
+  role      Role     @relation(fields: [fk_roleId], references: [id_role])
+
+  // Relacionamentos
+  visitsCreated   Visit[] @relation("createdBy")
+  visitsCheckout  Visit[] @relation("checkoutBy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([fk_roleId])
+  @@map("users")
+}
+
+// ============================================================
+// VISITOR - Visitantes
+// ============================================================
+model Visitor {
+  id_visitor String   @id @default(uuid())
+  fullName   String   @db.VarChar(150)
+  email      String?  @db.VarChar(255)
+  phone      String?  @db.VarChar(20)  // Regex: ^\d{10,11}$
+  cpf        String?  @db.VarChar(14)  // Sensível - não retornar em GET
+  document   String?  @db.VarChar(20) // Sensível - não retornar em GET
+  company    String?  @db.VarChar(150)
+  purpose    String   @db.VarChar(255) // Motivo da visita
+
+  // Relacionamentos
+  visits    Visit[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("visitors")
+}
+
+// ============================================================
+// VISIT - Visitas (entrada/saída)
+// ============================================================
+model Visit {
+  id_visit      String      @id @default(uuid())
+  fk_visitorId  String
+  visitor       Visitor     @relation(fields: [fk_visitorId], references: [id_visitor], onDelete: Cascade)
+
+  checkinAt   DateTime    @default(now())
+  checkoutAt  DateTime?
+  status      VisitStatus @default(ACTIVE)
+  host        String      @db.VarChar(150) // Pessoa responsável
+  notes       String?     @db.VarChar(500)
+
+  createdBy     String
+  createdByUser User      @relation("createdBy", fields: [createdBy], references: [id_user])
+
+  checkoutBy     String?
+  checkoutByUser User?    @relation("checkoutBy", fields: [checkoutBy], references: [id_user])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // A regra "1 visita ACTIVE por visitante" não pode ser expressa aqui
+  // (Prisma não suporta índice único parcial); precisa ser validada no service.
+  @@index([fk_visitorId])
+  @@index([status])
+  @@index([createdAt])
+
+  @@map("visits")
+}
+
+// ============================================================
+// ROLE - Papéis de acesso do sistema
+// ============================================================
+model Role {
+  id_role     Int              @id @default(autoincrement())
+  name        String           @unique @db.VarChar(50)
+  description String?          @db.VarChar(255)
+
+  users       User[]
+  permissions RolePermission[]
+
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("roles")
+}
+
+// ============================================================
+// PERMISSION - Permissões que podem ser atribuídas às roles
+// ============================================================
+model Permission {
+  id_permission Int              @id @default(autoincrement())
+  code          String           @unique @db.VarChar(100)
+  description   String?          @db.VarChar(255)
+
+  roles         RolePermission[]
+
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@map("permissions")
+}
+
+// ============================================================
+// ROLE_PERMISSION - Tabela associativa entre Role e Permission
+// ============================================================
+model RolePermission {
+  fk_roleId       Int
+  fk_permissionId Int
+
+  role       Role       @relation(fields: [fk_roleId], references: [id_role], onDelete: Cascade)
+  permission Permission @relation(fields: [fk_permissionId], references: [id_permission], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([fk_roleId, fk_permissionId])
+  @@map("role_permissions")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+enum VisitStatus {
+  ACTIVE
+  CLOSED
+}
