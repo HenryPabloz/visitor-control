@@ -68,7 +68,7 @@ export class VisitsService {
       throw erro;
     }
 
-    return this.buscarVisitaComVisitante(visitId);
+    return this.findById(visitId);
   }
 
   async checkout(visitId: string, dto: CheckoutVisitDto, userId: string): Promise<VisitResponseDto> {
@@ -96,7 +96,7 @@ export class VisitsService {
       throw erro;
     }
 
-    return this.buscarVisitaComVisitante(visitId);
+    return this.findById(visitId);
   }
 
   async getActiveVisits(
@@ -124,7 +124,7 @@ export class VisitsService {
   }
 
   // Busca a visita já com o visitante embutido e monta o DTO de resposta.
-  private async buscarVisitaComVisitante(visitId: string): Promise<VisitResponseDto> {
+  async findById(visitId: string): Promise<VisitResponseDto> {
     const visita = await this.prisma.visit.findUnique({
       where: { id_visit: visitId },
       include: { visitor: true },

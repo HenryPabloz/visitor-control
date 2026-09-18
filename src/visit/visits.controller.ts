@@ -44,7 +44,7 @@ export class VisitsController {
   @ApiOperation({
     summary: 'Registra o check-in de uma visita',
     description:
-      'Chama a procedure insert_visit, que insere uma nova linha na tabela "visits" com status ACTIVE. O campo createdBy vem do usuário autenticado (JWT), nunca do corpo da requisição.',
+      'Chama a procedure insert_visit, que insere uma nova linha na tabela "visits" com status ACTIVE. O campo createdBy vem do usuário autenticado (JWT), nunca do corpo da requisição. Recepcionista pode executar esta ação.',
   })
   @ApiBody({
     schema: {
@@ -73,7 +73,7 @@ export class VisitsController {
   @ApiOperation({
     summary: 'Registra o check-out de uma visita',
     description:
-      'Chama a procedure checkout_visit, que atualiza a linha na tabela "visits" pra status CLOSED, preenchendo checkoutAt e checkoutBy. O campo checkoutBy vem do usuário autenticado (JWT).',
+      'Chama a procedure checkout_visit, que atualiza a linha na tabela "visits" pra status CLOSED, preenchendo checkoutAt e checkoutBy. O campo checkoutBy vem do usuário autenticado (JWT). Recepcionista pode executar esta ação.',
   })
   @ApiParam({ name: 'id', example: 'f1e2d3c4-b5a6-7890-abcd-ef1234567890' })
   @ApiBody({
@@ -100,7 +100,7 @@ export class VisitsController {
   @Permissions(Permissao.VISIT_VIEW)
   @ApiOperation({
     summary: 'Lista as visitas ativas',
-    description: 'Consulta a tabela "visits" filtrando status=ACTIVE, com o visitante embutido, ordenado por checkinAt desc.',
+    description: 'Consulta a tabela "visits" filtrando status=ACTIVE, com o visitante embutido, ordenado por checkinAt desc. Recepcionista pode executar esta ação.',
   })
   @ApiQuery({ name: 'skip', required: false, example: 0 })
   @ApiQuery({ name: 'take', required: false, example: 20 })
@@ -113,5 +113,20 @@ export class VisitsController {
     @Query('take', new DefaultValuePipe(20), ParseIntPipe) take: number,
   ) {
     return this.visitsService.getActiveVisits(skip, take);
+  }
+
+  @Get(':id')
+  @Permissions(Permissao.VISIT_VIEW)
+  @ApiOperation({
+    summary: 'Busca uma visita pelo id',
+    description: 'Consulta a tabela "visits" (com o visitante embutido, via join) pelo id_visit da URL. Recepcionista pode executar esta ação.',
+  })
+  @ApiParam({ name: 'id', description: 'id_visit (uuid)', example: 'f1e2d3c4-b5a6-7890-abcd-ef1234567890' })
+  @ApiResponse({ status: 200, type: VisitResponseDto })
+  @ApiResponse({ status: 404, description: 'Nenhuma visita encontrada com esse id' })
+  @ApiResponse({ status: 401, description: 'Token de acesso ausente ou inválido' })
+  @ApiResponse({ status: 403, description: 'Usuário autenticado não possui a permissão VISIT_VIEW' })
+  findById(@Param('id') id: string): Promise<VisitResponseDto> {
+    return this.visitsService.findById(id);
   }
 }
