@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { PrismaClient } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import * as bcrypt from "bcrypt";
 
 const adaptadorPostgres = new PrismaPg({
     connectionString: process.env.DATABASE_URL,
@@ -103,6 +104,36 @@ async function assignPermissions(
     }
 }
 
+// Sem isso, ninguém consegue logar pra criar o primeiro usuário: a rota
+// POST /users exige um token de quem já tem a permissão USER_CREATE, e sem
+// nenhum usuário cadastrado essa permissão nunca chega a existir em token
+// nenhum. O upsert com "update: {}" nunca reseta a senha se já existir.
+async function criarAdminInicial() {
+    const email = process.env.ADMIN_EMAIL!;
+    const senha = process.env.ADMIN_PASSWORD!;
+
+    const roleAdmin = await prisma.role.findUnique({ where: { name: "ADMIN" } });
+
+    if (!roleAdmin) {
+        throw new Error("Role ADMIN não encontrada");
+    }
+
+    const senhaCriptografada = await bcrypt.hash(senha, 10);
+
+    await prisma.user.upsert({
+        where: { email },
+        update: {},
+        create: {
+            email,
+            password: senhaCriptografada,
+            fullName: "Administrador",
+            fk_roleId: roleAdmin.id_role,
+        },
+    });
+
+    console.log(`Admin inicial disponível: ${email} / ${senha} (troque a senha após o primeiro login)`);
+}
+
 // Ponto de entrada. Tudo fica aqui dentro porque o projeto é CommonJS
 // e não deixa usar await direto no topo do arquivo.
 async function main() {
@@ -141,6 +172,8 @@ async function main() {
         'ROLE_PERMISSION_VIEW',
         'ROLE_PERMISSION_UPDATE',
     ]);
+
+    await criarAdminInicial();
 
     console.log('Seed concluído com sucesso.');
 }
