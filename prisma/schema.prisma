@@ -47,7 +47,7 @@ model Visitor {
   email      String?  @db.VarChar(255)
   phone      String?  @db.VarChar(20)  // Regex: ^\d{10,11}$
   cpf        String?  @db.VarChar(14)  // Sensível - não retornar em GET
-  document   String?  @db.VarChar(20) // Sensível - não retornar em GET
+  document   String?  @unique @db.VarChar(20) // Sensível - não retornar em GET; único pra impedir cadastro duplicado
   company    String?  @db.VarChar(150)
   purpose    String   @db.VarChar(255) // Motivo da visita
 

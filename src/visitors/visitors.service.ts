@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma/prisma.service';
 import { CreateVisitorDto } from './dto/create-visitor.dto';
+import { UpdateVisitorDto } from './dto/update-visitor.dto';
 import { VisitorResponseDto } from './dto/visitor-response.dto';
 
 // Formato de uma linha da tabela "visitors" (o que o Prisma devolve).
@@ -20,6 +21,16 @@ export class VisitorsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateVisitorDto): Promise<VisitorResponseDto> {
+    if (dto.document) {
+      const visitanteComMesmoDocumento = await this.prisma.visitor.findUnique({
+        where: { document: dto.document },
+      });
+
+      if (visitanteComMesmoDocumento) {
+        throw new ConflictException('Já existe um visitante cadastrado com esse documento');
+      }
+    }
+
     // A procedure exige um placeholder na posição do parâmetro OUT,
     // senão o Postgres não encontra a assinatura da procedure.
     const linhas = await this.prisma.$queryRawUnsafe<{ o_visitor_id: string }[]>(
