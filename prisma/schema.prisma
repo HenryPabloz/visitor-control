@@ -44,7 +44,7 @@ model User {
 model Visitor {
   id_visitor String   @id @default(uuid())
   fullName   String   @db.VarChar(150)
-  email      String?  @db.VarChar(255)
+  email      String?  @unique @db.VarChar(255)
   phone      String?  @db.VarChar(20)  // Regex: ^\d{10,11}$
   cpf        String?  @db.VarChar(14)  // Sensível - não retornar em GET
   document   String?  @unique @db.VarChar(20) // Sensível - não retornar em GET; único pra impedir cadastro duplicado

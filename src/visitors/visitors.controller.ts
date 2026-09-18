@@ -91,7 +91,7 @@ export class VisitorsController {
   })
   @ApiResponse({ status: 401, description: 'Token de acesso ausente ou inválido' })
   @ApiResponse({ status: 403, description: 'Usuário autenticado não possui a permissão VISITOR_CREATE' })
-  @ApiResponse({ status: 409, description: 'Já existe um visitante cadastrado com esse documento' })
+  @ApiResponse({ status: 409, description: 'Já existe um visitante cadastrado com esse e-mail ou documento' })
   create(@Body() dto: CreateVisitorDto): Promise<VisitorResponseDto> {
     return this.visitorsService.create(dto);
   }

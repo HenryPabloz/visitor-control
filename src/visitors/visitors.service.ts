@@ -21,6 +21,16 @@ export class VisitorsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateVisitorDto): Promise<VisitorResponseDto> {
+    if (dto.email) {
+      const visitanteComMesmoEmail = await this.prisma.visitor.findUnique({
+        where: { email: dto.email },
+      });
+
+      if (visitanteComMesmoEmail) {
+        throw new ConflictException('Já existe um visitante cadastrado com esse e-mail');
+      }
+    }
+
     if (dto.document) {
       const visitanteComMesmoDocumento = await this.prisma.visitor.findUnique({
         where: { document: dto.document },
