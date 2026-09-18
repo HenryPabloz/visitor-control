@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -25,6 +26,7 @@ import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permission.guard';
 import { CreateVisitorDto } from './dto/create-visitor.dto';
+import { UpdateVisitorDto } from './dto/update-visitor.dto';
 import { VisitorResponseDto } from './dto/visitor-response.dto';
 import { VisitorsService } from './visitors.service';
 
@@ -127,5 +129,34 @@ export class VisitorsController {
     @Query('take', new DefaultValuePipe(20), ParseIntPipe) take: number,
   ) {
     return this.visitorsService.getAll(skip, take);
+  }
+
+  @Patch(':id')
+  @Permissions(Permissao.VISITOR_UPDATE)
+  @ApiOperation({
+    summary: 'Atualiza dados de um visitante',
+    description:
+      'Atualiza parcialmente os campos fullName, email, phone, company e purpose na tabela "visitors" (cpf/document não podem ser alterados por esta rota). Recepcionista pode executar esta ação.',
+  })
+  @ApiParam({ name: 'id', description: 'id_visitor (uuid)', example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
+  @ApiBody({
+    schema: {
+      example: {
+        phone: '11987654321',
+        company: 'Nova Empresa Ltda',
+      },
+    },
+  })
+  @ApiResponse({ status: 200, type: VisitorResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: 'Dados inválidos (nome muito curto, telefone com formato/tamanho errado, motivo da visita muito curto, e-mail mal formatado)',
+  })
+  @ApiResponse({ status: 404, description: 'Nenhum visitante encontrado com esse id' })
+  @ApiResponse({ status: 409, description: 'Já existe outro visitante cadastrado com esse e-mail' })
+  @ApiResponse({ status: 401, description: 'Token de acesso ausente ou inválido' })
+  @ApiResponse({ status: 403, description: 'Usuário autenticado não possui a permissão VISITOR_UPDATE' })
+  update(@Param('id') id: string, @Body() dto: UpdateVisitorDto): Promise<VisitorResponseDto> {
+    return this.visitorsService.update(id, dto);
   }
 }

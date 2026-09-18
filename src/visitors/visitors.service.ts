@@ -82,6 +82,40 @@ export class VisitorsService {
     return { data, total, skip, take };
   }
 
+  async update(visitorId: string, dto: UpdateVisitorDto): Promise<VisitorResponseDto> {
+    const visitante = await this.prisma.visitor.findUnique({ where: { id_visitor: visitorId } });
+
+    if (!visitante) {
+      throw new NotFoundException('Visitante não encontrado');
+    }
+
+    if (dto.email && dto.email !== visitante.email) {
+      const visitanteComMesmoEmail = await this.prisma.visitor.findFirst({
+        where: {
+          email: dto.email,
+          NOT: { id_visitor: visitorId },
+        },
+      });
+
+      if (visitanteComMesmoEmail) {
+        throw new ConflictException('Já existe um visitante cadastrado com esse e-mail');
+      }
+    }
+
+    const visitanteAtualizado = await this.prisma.visitor.update({
+      where: { id_visitor: visitorId },
+      data: {
+        fullName: dto.fullName,
+        email: dto.email,
+        phone: dto.phone,
+        company: dto.company,
+        purpose: dto.purpose,
+      },
+    });
+
+    return this.mapParaResposta(visitanteAtualizado);
+  }
+
   // Monta o DTO de resposta a partir da linha do banco, sem cpf/document.
   private mapParaResposta(visitante: VisitorRow): VisitorResponseDto {
     return {
