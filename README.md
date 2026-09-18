@@ -35,7 +35,9 @@ src/
 
 O controle de acesso é feito por **roles** (`RECEPTIONIST`, `ADMIN`) e **permissions** (ex: `VISIT_CREATE`, `VISITOR_VIEW_SENSITIVE`, `USER_CHANGE_ROLE`), guardadas em tabelas no banco (`roles`, `permissions`, `role_permissions`) e verificadas em cada rota pelo decorator `@Permissions(...)` + `PermissionsGuard`.
 
-Regras de negócio centrais (impedir visita duplicada, exigir dados de checkout, etc.) são garantidas em duas camadas: **procedures** do Postgres (`create_visitor`, `insert_visit`, `checkout_visit`) chamadas pelos services, e **triggers** no banco (`prevent_double_active_visit`, `prevent_double_checkout`, `audit_visits`) como defesa extra caso alguém grave direto na tabela.
+Regras de negócio centrais (impedir visita duplicada, exigir dados de checkout, etc.) são garantidas em duas camadas: **procedures** do Postgres (`create_visitor`, `insert_visit`, `checkout_visit`) chamadas pelos services, e **triggers** no banco (`prevent_double_active_visit`, `prevent_double_checkout`, `audit_visits`) como defesa extra caso alguém grave direto na tabela. O documento do visitante (CPF, RG ou documento internacional, até 14 caracteres) é único no banco — não é possível cadastrar dois visitantes com o mesmo documento.
+
+Cada rota documentada no Swagger indica explicitamente se a role `RECEPTIONIST` pode ou não executá-la, com base nas permissions atribuídas em `prisma/seed.ts`.
 
 ## Configuração
 
@@ -57,16 +59,17 @@ cp .env.example .env
 | `JWT_SECRET` | chave usada para assinar o token JWT (mínimo 16 caracteres) |
 | `JWT_EXPIRATION` | tempo de validade do token (ex: `1h`, `24h`) |
 | `API_KEY` | chave exigida no header `x-api-key` em toda rota da API |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | credenciais do usuário admin criado automaticamente pelo seed |
 | `PORT` | porta em que o servidor sobe (padrão `3000`) |
 | `NODE_ENV` | ambiente (`development`, `production` ou `test`) |
 
-3. Rode as migrations (cria tabelas, procedures e triggers no banco):
+3. Rode as migrations (cria tabelas, procedures, triggers e constraints no banco):
 
 ```bash
 npx prisma migrate dev
 ```
 
-4. Popule as roles/permissions iniciais (`RECEPTIONIST`, `ADMIN` e suas permissões):
+4. Popule as roles/permissions iniciais (`RECEPTIONIST`, `ADMIN` e suas permissões) e crie o usuário admin inicial (usa `ADMIN_EMAIL`/`ADMIN_PASSWORD` do `.env`) — sem isso não tem como logar pela primeira vez, já que criar um usuário pela API exige estar logado como alguém que já tenha a permissão `USER_CREATE`:
 
 ```bash
 npx tsx prisma/seed.ts
@@ -104,17 +107,24 @@ curl -X POST http://localhost:3000/auth/login \
 
 ## Principais rotas
 
-| Método | Rota | Descrição |
-|---|---|---|
-| `POST` | `/auth/login` | autentica e devolve o token JWT |
-| `POST` | `/users` | cria um usuário do sistema |
-| `GET` | `/users/:id` | busca um usuário pelo id |
-| `POST` | `/visitors` | cadastra um visitante |
-| `GET` | `/visitors/:id` | busca um visitante pelo id |
-| `GET` | `/visitors` | lista visitantes (paginado) |
-| `POST` | `/visits` | registra o check-in de uma visita |
-| `PATCH` | `/visits/:id/checkout` | registra o check-out de uma visita |
-| `GET` | `/visits/active` | lista as visitas com status `ACTIVE` |
+| Método | Rota | Descrição | Permissão | Recepcionista |
+|---|---|---|---|---|
+| `POST` | `/auth/login` | autentica e devolve o token JWT | — | ✅ |
+| `POST` | `/users` | cria um usuário do sistema | `USER_CREATE` | ❌ (só ADMIN) |
+| `GET` | `/users` | lista usuários (paginado) | `USER_LIST` | ❌ (só ADMIN) |
+| `GET` | `/users/:id` | busca um usuário pelo id | `USER_LIST` | ❌ (só ADMIN) |
+| `PATCH` | `/users/me/password` | troca a própria senha | `USER_UPDATE_OWN` | ✅ |
+| `DELETE` | `/users/:id` | exclui um usuário | `USER_DELETE` | ❌ (só ADMIN) |
+| `POST` | `/visitors` | cadastra um visitante | `VISITOR_CREATE` | ✅ |
+| `GET` | `/visitors/:id` | busca um visitante pelo id | `VISITOR_VIEW` | ✅ |
+| `GET` | `/visitors` | lista visitantes (paginado) | `VISITOR_VIEW` | ✅ |
+| `PATCH` | `/visitors/:id` | atualiza dados de um visitante (fullName, email, phone, company, purpose) | `VISITOR_UPDATE` | ✅ |
+| `POST` | `/visits` | registra o check-in de uma visita | `VISIT_CREATE` | ✅ |
+| `GET` | `/visits/:id` | busca uma visita pelo id | `VISIT_VIEW` | ✅ |
+| `PATCH` | `/visits/:id/checkout` | registra o check-out de uma visita | `VISIT_CHECKOUT` | ✅ |
+| `GET` | `/visits/active` | lista as visitas com status `ACTIVE` | `VISIT_VIEW` | ✅ |
+
+A senha nova em `PATCH /users/me/password` não pode ser igual à senha atual, e o e-mail/documento em `PATCH /visitors/:id` e `POST /visitors` não podem repetir um já cadastrado em outro registro.
 
 ## Testes
 
